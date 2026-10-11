@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { relativeLuminance, pickTextMode } from '../src/visual';
+import { relativeLuminance, pickTextMode, parseColor } from '../src/visual';
 
 describe('relativeLuminance', () => {
     it('return 0 for pure black', () => {
@@ -36,5 +36,30 @@ describe('pickTextMode', () => {
         // but should pick 'light' if we lower the threshold to 0.3
         expect(pickTextMode(0.4, 0.5)).toBe('light');
         expect(pickTextMode(0.4, 0.3)).toBe('dark');
+    });
+});
+
+describe('parseColor', () => {
+    it('parses rgb()', () => {
+        expect(parseColor('rgb(240, 120, 10)')).toEqual({ r: 240, g: 120, b: 10, a: 1});
+    });
+    
+    it('parses rgba() with alpha', () => {
+        expect(parseColor('rgba(0, 0, 0, 0.5)')).toEqual({ r: 0, g: 0, b: 0, a: 0.5});
+    });
+
+    it('parses 6-digit and 3-digit hex', () => {
+        expect(parseColor('#1a1a1a')).toEqual({ r: 26, g: 26, b: 26, a: 1});
+        expect(parseColor('#fff')).toEqual({ r: 255, g: 255, b: 255, a: 1});
+    })
+
+    it('treats "transparent" as alpha 0', () => {
+        expect(parseColor('transparent')?.a).toBe(0);
+    });
+
+    it('returns null for unsupported or invalid input', () => {
+        expect(parseColor('oklch(0.5 0.1 200)')).toBeNull();
+        expect(parseColor('not a color')).toBeNull();
+        expect(parseColor('#12')).toBeNull();
     });
 });
