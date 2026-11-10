@@ -1,0 +1,117 @@
+/*
+ * Glassware core styles.
+ * Token names and defaults follow SPEC.md §2-§4.
+ *
+ * Works with zero JavaScript as a frosted-glass button. attach() layers on:
+ *  - clamping token values to the ranges in SPEC §2
+ *  - data-glass-type="watery"  (only after support is detected and the
+ *    SVG filter has been injected, so the fallback is always frosted)
+ *  - data-glass-edge="off"     (when edgeReflection is false)
+ *  - --glass-text-color        (set inline from the sampled background)
+ *  - --glass-distortion-filter (points at the per-element SVG filter)
+ */
+
+.glass {
+  /* SPEC §2: visual tokens */
+  --glass-blur: 12px;
+  --glass-transparency: 0.18;
+  --glass-tint: rgba(255, 255, 255, 1);
+  --glass-radius: 12px;
+
+  /* SPEC §2: watery only. SVG filter attributes can't read CSS variables,
+     so attach() reads these two and builds the filter with matching values. */
+  --glass-distortion-scale: 28;
+  --glass-distortion-speed: 8s;
+
+  /* SPEC §3: edge reflection (layered inset box-shadows) */
+  --glass-edge-highlight: inset 1px 1px 1px rgba(255, 255, 255, 0.6);
+  --glass-edge-shadow: inset -1px -1px 1px rgba(0, 0, 0, 0.15);
+
+  /* SPEC §4: text colors, and the one that's currently in use.
+     With no JS the default is dark text, matching a light page. */
+  --glass-text-dark: #1a1a1a;
+  --glass-text-light: #f5f5f5;
+  --glass-text-color: var(--glass-text-dark);
+
+  /* Filter used by the watery type. attach() overrides this inline when
+     scale or speed differ from the defaults. */
+  --glass-distortion-filter: url(#glassware-displacement);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0.6em 1.2em;
+  border: 0;
+  border-radius: var(--glass-radius);
+  font: inherit;
+  color: var(--glass-text-color);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  /* Static fallback first for browsers without color-mix(); the tint is
+     then mixed at `transparency` alpha (SPEC §2). */
+  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(
+    in srgb,
+    var(--glass-tint) calc(var(--glass-transparency) * 100%),
+    transparent
+  );
+
+  /* SPEC §1: frosted is the universal default */
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+
+  box-shadow: var(--glass-edge-highlight), var(--glass-edge-shadow);
+  transition: transform 0.15s ease;
+}
+
+/* SPEC §4 CSS-only fallback: the developer declares what is BEHIND the
+   element. A light background gets dark text and vice versa. */
+.glass[data-glass-mode="light"] {
+  --glass-text-color: var(--glass-text-dark);
+}
+
+.glass[data-glass-mode="dark"] {
+  --glass-text-color: var(--glass-text-light);
+}
+
+/* SPEC §3: edge reflection can be switched off */
+.glass[data-glass-edge="off"] {
+  box-shadow: none;
+}
+
+/* SPEC §1: watery = blur + SVG displacement. Gated by @supports as a second
+   safety net; if the browser can't do it, the rule is ignored and the
+   element simply stays frosted. */
+@supports (backdrop-filter: url(#x)) {
+  .glass[data-glass-type="watery"] {
+    -webkit-backdrop-filter: blur(var(--glass-blur)) var(--glass-distortion-filter);
+    backdrop-filter: blur(var(--glass-blur)) var(--glass-distortion-filter);
+  }
+}
+
+.glass:active {
+  transform: scale(0.97);
+}
+
+.glass:focus-visible {
+  outline: 2px solid var(--glass-text-color);
+  outline-offset: 2px;
+}
+
+.glass:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass {
+    transition: none;
+  }
+
+  .glass:active {
+    transform: none;
+  }
+}

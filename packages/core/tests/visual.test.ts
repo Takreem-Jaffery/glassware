@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { relativeLuminance, pickTextMode, parseColor } from '../src/visual';
+import {
+    relativeLuminance,
+    pickTextMode,
+    parseColor,
+    textModeForTone,
+    TEXT_COLORS,
+} from '../src/visual';
 
 describe('relativeLuminance', () => {
     it('return 0 for pure black', () => {
@@ -39,11 +45,35 @@ describe('pickTextMode', () => {
     });
 });
 
+describe('textModeForTone', () => {
+    it('uses dark text on a light background', () => {
+        expect(textModeForTone('light')).toBe('dark');
+    });
+
+    it('uses light text on a dark background', () => {
+        expect(textModeForTone('dark')).toBe('light');
+    });
+
+    it('agrees with pickTextMode for the same background', () => {
+        const lightBg = relativeLuminance(240, 240, 240);
+        const darkBg = relativeLuminance(20, 20, 20);
+        expect(pickTextMode(lightBg)).toBe(textModeForTone('light'));
+        expect(pickTextMode(darkBg)).toBe(textModeForTone('dark'));
+    });
+});
+
+describe('TEXT_COLORS', () => {
+    it('matches the SPEC §4 text colors', () => {
+        expect(TEXT_COLORS.dark).toBe('#1a1a1a');
+        expect(TEXT_COLORS.light).toBe('#f5f5f5');
+    });
+});
+
 describe('parseColor', () => {
     it('parses rgb()', () => {
         expect(parseColor('rgb(240, 120, 10)')).toEqual({ r: 240, g: 120, b: 10, a: 1});
     });
-    
+
     it('parses rgba() with alpha', () => {
         expect(parseColor('rgba(0, 0, 0, 0.5)')).toEqual({ r: 0, g: 0, b: 0, a: 0.5});
     });
