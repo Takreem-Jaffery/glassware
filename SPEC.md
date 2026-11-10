@@ -51,6 +51,11 @@ fill alpha channel.
 Implemented via layered inset `box-shadow` — not a gradient or image —
 so it stays a single flat CSS property and is cheap to render.
 
+**Web spelling of the toggle:** CSS cannot switch a `box-shadow` on and
+off from a boolean variable, so on the web `--glass-edge-enabled` is
+expressed as the `data-glass-edge="off"` state hook (see §6.2). Native
+implementations expose it as the `edgeReflection` config flag.
+
 ## 4. Contrast / Text Color Algorithm
 
 Goal: text on a glass button must stay legible regardless of what's behind it.
@@ -67,6 +72,12 @@ Goal: text on a glass button must stay legible regardless of what's behind it.
   This guarantees the library works with zero JavaScript, just degrades
   from "automatic" to "declared."
 
+**Terminology:** `light` / `dark` in `data-glass-mode` and in the
+`contrastMode` config describe the **background** behind the element
+(its tone). The resulting **text** color is the inverse: a `light`
+background gets dark text, a `dark` background gets light text.
+Implementations should keep these two ideas in separate types or names.
+
 **Why not just always use white text with a dark overlay?**
 Because part of the differentiator is that it *works on any background*,
 light or dark — that's the harder, more interesting problem, and it's
@@ -76,6 +87,14 @@ this behavior that's easiest to demo well.
 Otherwise → use light text (`#f5f5f5`). This is a simplified version of
 WCAG contrast ratio checking, not full AA/AAA compliance — documented as
 a known limitation for v1, upgradeable later.
+
+**Precedence when resolving text color:**
+
+1. `contrastMode` config set to `light` / `dark`
+2. `data-glass-mode` attribute
+3. Measured background (solid color, or sampled image/gradient)
+4. `data-glass-bg` hint, when sampling isn't possible
+5. Default: dark text (assumes a light page)
 
 ## 5. Interaction Tokens (reserved for Phase 0.5+, not implemented yet)
 
@@ -97,6 +116,39 @@ documents the token names and intent; §7 documents the code shape.
 - JS API: `glassware.attach(element, config)`
 - Config keys mirror data attributes: `{ mode, crack, sound }`
 
+The spellings below are the **web** ones. Native implementations don't
+use DOM attributes or CSS variables, but must expose the same concepts
+under the same names, so behavior and documentation line up across
+platforms.
+
+### 6.1 Developer-set attributes (input)
+
+Set by the developer in markup. These are the zero-JavaScript controls.
+
+| Attribute         | Values            | Meaning |
+|--------------------|-------------------|---------|
+| `data-glass-mode`  | `light` \| `dark` | Declares the background tone behind the element (§4). `light` → dark text. Overridden by a `contrastMode` config of `light` / `dark`. |
+| `data-glass-bg`    | any CSS color     | Background color hint, used for contrast only when sampling isn't possible (§4). |
+
+### 6.2 Library-set state hooks (output)
+
+Written by `attach()` and read by the stylesheet. Developers should not
+set these by hand, with the exception noted in §6.1 for zero-JS use.
+
+| Hook | Values | Meaning |
+|------|--------|---------|
+| `data-glass-type` | `watery` | The **resolved** type. Present only when `type` is `watery` **and** support was detected (§1) **and** the SVG filter was injected. Absent means `frosted`; the stylesheet reacts to `watery` only, so any other value renders frosted. |
+| `data-glass-edge` | `off` | Edge reflection disabled (`edgeReflection: false`). Absent means enabled. Web spelling of `--glass-edge-enabled` (§3). |
+| `--glass-text-color` | CSS color | The resolved text color (§4): `#1a1a1a` or `#f5f5f5`. Set inline by `attach()`; without JS it follows `data-glass-mode`. |
+| `--glass-distortion-filter` | `url(#id)` | Reference to the per-element SVG displacement filter. SVG filter attributes can't read CSS variables, so each distinct distortion scale/speed pair gets its own filter. Default: `url(#glassware-displacement)`. |
+
+### 6.3 Supporting tokens (web)
+
+| Token                | Default | Notes |
+|-----------------------|---------|-------|
+| `--glass-text-dark`   | #1a1a1a | Text color used on light backgrounds (§4) |
+| `--glass-text-light`  | #f5f5f5 | Text color used on dark backgrounds (§4) |
+
 ## 7. Config Schema
 
 ```js
@@ -107,7 +159,9 @@ documents the token names and intent; §7 documents the code shape.
   blur: 4–24,                         // px
   radius: 0–32,                       // px
   edgeReflection: boolean,            // default true
-  contrastMode: 'auto' | 'light' | 'dark',
+  contrastMode: 'auto' | 'light' | 'dark', // 'light'/'dark' declare the BACKGROUND (§4)
+  distortionScale: 10–50,             // default 28; watery only
+  distortionSpeed: 4–16,              // seconds, default 8; watery only
 
   // reserved, not yet implemented:
   sound: string | null,
