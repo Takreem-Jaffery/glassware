@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TEXT_COLORS } from '../src/visual';
-import { DEFAULT_DISTORTION_SCALE, DEFAULT_DISTORTION_SPEED } from '../src/watery';
+import {
+    DEFAULT_DISTORTION_SCALE,
+    DEFAULT_DISTORTION_SPEED,
+    WATERY_DEFAULT_BLUR,
+    WATERY_DEFAULT_TRANSPARENCY,
+} from '../src/watery';
 
 const css = readFileSync(
     fileURLToPath(new URL('../src/glassware.css', import.meta.url)),
@@ -16,7 +21,7 @@ describe('glassware.css matches SPEC defaults', () => {
         ['--glass-transparency', '0.18'],
         ['--glass-tint', 'rgba(255, 255, 255, 1)'],
         ['--glass-radius', '12px'],
-        ['--glass-distortion-scale', '28'],
+        ['--glass-distortion-scale', '40'],
         ['--glass-distortion-speed', '8s'],
         ['--glass-edge-highlight', 'inset 1px 1px 1px rgba(255, 255, 255, 0.6)'],
         ['--glass-edge-shadow', 'inset -1px -1px 1px rgba(0, 0, 0, 0.15)'],
@@ -43,6 +48,12 @@ describe('glassware.css matches SPEC defaults', () => {
         expect(css).toMatch(
             /\[data-glass-mode="dark"\]\s*\{\s*--glass-text-color:\s*var\(--glass-text-light\)/
         );
+    });
+
+    it('gives watery its own see-through blur and transparency defaults', () => {
+        const watery = css.slice(css.indexOf('[data-glass-type="watery"]'));
+        expect(watery).toContain(`--glass-blur: ${WATERY_DEFAULT_BLUR}px;`);
+        expect(watery).toContain(`--glass-transparency: ${WATERY_DEFAULT_TRANSPARENCY};`);
     });
 
     it('only applies the watery filter inside an @supports guard', () => {

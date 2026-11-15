@@ -6,6 +6,8 @@ import {
     createDisplacementFilter,
     ensureDisplacementFilter,
     DEFAULT_FILTER_ID,
+    DEFAULT_DISTORTION_SCALE,
+    DEFAULT_DISTORTION_SPEED,
 } from '../src/watery';
 
 beforeEach(() => {
@@ -47,13 +49,15 @@ describe('supportsWateryGlass', () => {
 describe('filterIdFor', () => {
     it('uses the well-known id for the default scale and speed', () => {
         expect(filterIdFor()).toBe(DEFAULT_FILTER_ID);
-        expect(filterIdFor(28, 8)).toBe(DEFAULT_FILTER_ID);
+        expect(filterIdFor(DEFAULT_DISTORTION_SCALE, DEFAULT_DISTORTION_SPEED)).toBe(
+            DEFAULT_FILTER_ID
+        );
     });
 
     it('gives each other scale/speed pair its own id', () => {
-        expect(filterIdFor(40, 8)).not.toBe(DEFAULT_FILTER_ID);
-        expect(filterIdFor(40, 8)).not.toBe(filterIdFor(28, 5));
-        expect(filterIdFor(40, 8)).toBe(filterIdFor(40, 8));
+        expect(filterIdFor(30, 8)).not.toBe(DEFAULT_FILTER_ID);
+        expect(filterIdFor(30, 8)).not.toBe(filterIdFor(30, 5));
+        expect(filterIdFor(30, 8)).toBe(filterIdFor(30, 8));
     });
 
     it('produces ids that are safe in url(#...) for fractional values', () => {
@@ -65,7 +69,9 @@ describe('createDisplacementFilter', () => {
     it('builds a filter with the default scale, speed and id', () => {
         const svg = createDisplacementFilter();
         expect(svg.querySelector('filter')?.getAttribute('id')).toBe(DEFAULT_FILTER_ID);
-        expect(svg.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe('28');
+        expect(svg.querySelector('feDisplacementMap')?.getAttribute('scale')).toBe(
+            String(DEFAULT_DISTORTION_SCALE)
+        );
         expect(svg.querySelector('animate')?.getAttribute('dur')).toBe('8s');
     });
 
