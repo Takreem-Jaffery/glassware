@@ -59,6 +59,12 @@ describe('averageColors', () => {
         const result = averageColors([{ r: 0, g: 0, b: 0, a: 0.5 }]);
         expect(result?.r).toBeCloseTo(127.5);
     });
+
+    it('flattens translucent colors over a given base instead of white', () => {
+        const navy = { r: 10, g: 20, b: 60, a: 1 };
+        const result = averageColors([{ r: 255, g: 255, b: 255, a: 0 }], navy);
+        expect(result).toEqual({ r: 10, g: 20, b: 60, a: 1 });
+    });
 });
 
 describe('averagePixels', () => {
@@ -100,9 +106,16 @@ describe('extractGradientColors', () => {
         expect(colors[1]).toEqual({ r: 255, g: 255, b: 255, a: 1 });
     });
 
-    it('skips fully transparent stops', () => {
+    it('keeps transparent stops, since they show what is underneath', () => {
         const colors = extractGradientColors('linear-gradient(rgba(0, 0, 0, 0), #fff)');
-        expect(colors).toHaveLength(1);
+        expect(colors).toHaveLength(2);
+        expect(colors[0].a).toBe(0);
+    });
+
+    it('recognises the transparent keyword', () => {
+        const colors = extractGradientColors('linear-gradient(transparent, #fff)');
+        expect(colors).toHaveLength(2);
+        expect(colors[0]).toEqual({ r: 0, g: 0, b: 0, a: 0 });
     });
 
     it('ignores # characters inside url() values', () => {
@@ -162,6 +175,29 @@ describe('sampleBackground', () => {
             },
         });
         expect(result).toBeNull();
+    });
+
+    it('lets a translucent gradient show the element\'s own background color', async () => {
+        // The real case that failed in Chromium: white grid lines at 55% over navy.
+        const { parent } = buttonInside(
+            'background-color: rgb(13, 16, 48); ' +
+                'background-image: linear-gradient(rgba(255, 255, 255, 0.55), transparent)'
+        );
+        const result = await sampleBackground(parent);
+        // 55% white over navy is about 146; transparent is navy (13). Average is ~79,
+        // nowhere near the 255 you would get by flattening over white.
+        expect(result?.r).toBeCloseTo((255 * 0.55 + 13 * 0.45 + 13) / 2, 0);
+        expect(result!.r).toBeLessThan(100);
+    });
+
+    it('flattens transparent image pixels over the element\'s own background color', async () => {
+        const { parent } = buttonInside(
+            'background-color: rgb(0, 0, 0); background-image: url(photo.png)'
+        );
+        const result = await sampleBackground(parent, {
+            readPixels: async () => [255, 255, 255, 0, 255, 255, 255, 0], // two transparent pixels
+        });
+        expect(result).toEqual({ r: 0, g: 0, b: 0, a: 1 });
     });
 
     it('averages gradient stops', async () => {
@@ -227,6 +263,14 @@ describe('resolveContrastMode', () => {
             deps: { readPixels: readerReturning(solidPixels(250, 250, 250)) },
         });
         expect(mode).toBe('dark');
+    });
+
+    it('picks light text on a navy page with translucent white grid lines', async () => {
+        const { button } = buttonInside(
+            'background-color: rgb(13, 16, 48); ' +
+                'background-image: linear-gradient(rgba(255, 255, 255, 0.55), transparent)'
+        );
+        expect(await resolveContrastMode(button)).toBe('light');
     });
 
     it('uses data-glass-bg when sampling fails', async () => {

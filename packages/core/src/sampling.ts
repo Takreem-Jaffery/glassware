@@ -33,15 +33,17 @@ export interface SamplingDeps {
 // Pure averaging helpers
 // ---------------------------------------------------------------------------
 
-// Average a list of colors. Translucent colors are flattened over white first
-// (same convention as findEffectiveBackground). Returns null for an empty list.
-export function averageColors(colors: RGBA[]): RGBA | null {
+// Average a list of colors. Translucent colors are flattened over `base`
+// first: whatever sits underneath them, which is white unless the caller
+// knows better (same default as findEffectiveBackground).
+// Returns null for an empty list.
+export function averageColors(colors: RGBA[], base: RGBA = WHITE): RGBA | null {
     if (colors.length === 0) return null;
     let r = 0;
     let g = 0;
     let b = 0;
     for (const color of colors) {
-        const flat = compositeOver(color, WHITE);
+        const flat = compositeOver(color, base);
         r += flat.r;
         g += flat.g;
         b += flat.b;
@@ -52,12 +54,13 @@ export function averageColors(colors: RGBA[]): RGBA | null {
 
 // Average raw RGBA pixel data (as from canvas getImageData().data).
 // Returns null if there isn't at least one whole pixel.
-export function averagePixels(data: ArrayLike<number>): RGBA | null {
+// Transparent pixels show `base` (white unless given).
+export function averagePixels(data: ArrayLike<number>, base: RGBA = WHITE): RGBA | null {
     const colors: RGBA[] = [];
     for (let i = 0; i + 3 < data.length; i += 4) {
         colors.push({ r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] / 255 });
     }
-    return averageColors(colors);
+    return averageColors(colors, base);
 }
 
 // ---------------------------------------------------------------------------
@@ -70,18 +73,20 @@ export function extractImageUrl(backgroundImage: string): string | null {
     return match && match[2] ? match[2] : null;
 }
 
-// Collect the color stops we understand (#hex, rgb(), rgba()) from a gradient.
-// Fully transparent stops are skipped: they show whatever is behind the
-// gradient, so they say nothing about its own brightness.
-// Named colors (e.g. "red") are not recognised yet; a gradient made only of
-// them yields no colors and the caller falls back.
+// Collect the color stops we understand (#hex, rgb(), rgba(), transparent)
+// from a gradient. Transparent and translucent stops are kept on purpose:
+// they show whatever is underneath, so the caller flattens them over the
+// element's own background color.
+// Other named colors (e.g. "red") are not recognised yet; a gradient made
+// only of them yields no colors and the caller falls back.
 export function extractGradientColors(backgroundImage: string): RGBA[] {
     const withoutUrls = backgroundImage.replace(/url\([^)]*\)/gi, '');
-    const tokens = withoutUrls.match(/#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi) ?? [];
+    const tokens =
+        withoutUrls.match(/#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|\btransparent\b/gi) ?? [];
     const colors: RGBA[] = [];
     for (const token of tokens) {
         const color = parseColor(token);
-        if (color && color.a > 0) colors.push(color);
+        if (color) colors.push(color);
     }
     return colors;
 }
@@ -149,23 +154,33 @@ async function safeRead(reader: PixelReader, url: string): Promise<ArrayLike<num
 // Returns null when neither works, so the caller can fall back to
 // data-glass-bg / data-glass-mode.
 //
-// Known limitation (v1): the whole image is averaged. background-size,
-// background-position and the exact spot under the glass element are ignored.
+// Transparent parts of the image or gradient show the node's own
+// background-color, so that color is the base they are flattened over
+// (a navy page with a translucent white grid is dark, not light).
+//
+// Known limitations (v1): the whole image is averaged. background-size,
+// background-position and the exact spot under the glass element are ignored,
+// and only the node's own background-color is considered beneath the image,
+// not its ancestors'.
 export async function sampleBackground(
     node: Element,
     deps: SamplingDeps = {}
 ): Promise<RGBA | null> {
-    const image = getComputedStyle(node).backgroundImage;
+    const style = getComputedStyle(node);
+    const image = style.backgroundImage;
     if (!image || image === 'none') return null;
+
+    const ownColor = parseColor(style.backgroundColor);
+    const base = ownColor && ownColor.a > 0 ? compositeOver(ownColor, WHITE) : WHITE;
 
     const url = extractImageUrl(image);
     if (url) {
         const pixels = await safeRead(deps.readPixels ?? readPixelsFromCanvas, url);
-        const average = pixels ? averagePixels(pixels) : null;
+        const average = pixels ? averagePixels(pixels, base) : null;
         if (average) return average;
     }
 
-    return averageColors(extractGradientColors(image));
+    return averageColors(extractGradientColors(image), base);
 }
 
 // ---------------------------------------------------------------------------
