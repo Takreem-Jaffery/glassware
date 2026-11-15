@@ -20,7 +20,7 @@
 
   /* SPEC §2: watery only. SVG filter attributes can't read CSS variables,
      so attach() reads these two and builds the filter with matching values. */
-  --glass-distortion-scale: 28;
+  --glass-distortion-scale: 40;
   --glass-distortion-speed: 8s;
 
   /* SPEC §3: edge reflection (layered inset box-shadows) */
@@ -84,9 +84,16 @@
 
 /* SPEC §1: watery = blur + SVG displacement. Gated by @supports as a second
    safety net; if the browser can't do it, the rule is ignored and the
-   element simply stays frosted. */
+   element simply stays frosted.
+
+   Watery is meant to be see-through, so it starts from a lower blur and fill
+   than frosted (SPEC §2). Values set by the developer or by attach() are
+   inline and still win over these defaults. */
 @supports (backdrop-filter: url(#x)) {
   .glass[data-glass-type="watery"] {
+    --glass-blur: 4px;
+    --glass-transparency: 0.08;
+
     -webkit-backdrop-filter: blur(var(--glass-blur)) var(--glass-distortion-filter);
     backdrop-filter: blur(var(--glass-blur)) var(--glass-distortion-filter);
   }

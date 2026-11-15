@@ -1,9 +1,13 @@
 // Support for the "watery" glass type (SPEC §1): detecting whether the browser
 // can run it, and building the SVG displacement filter it needs.
 
-export const DEFAULT_DISTORTION_SCALE = 28; // SPEC §2: feDisplacementMap scale
+export const DEFAULT_DISTORTION_SCALE = 40; // SPEC §2: feDisplacementMap scale
 export const DEFAULT_DISTORTION_SPEED = 8; // SPEC §2: noise animation, seconds
 export const DEFAULT_FILTER_ID = 'glassware-displacement';
+
+// SPEC §2: watery is meant to be see-through, so it starts from a lower blur and fill than frosted
+export const WATERY_DEFAULT_BLUR = 4; // px (frosted default: 12)
+export const WATERY_DEFAULT_TRANSPARENCY = 0.08; // (frosted default: 0.18)
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -83,7 +87,7 @@ export function createDisplacementFilter(
 
     const noise = svgEl(doc, 'feTurbulence', {
         type: 'fractalNoise',
-        baseFrequency: '0.010 0.012',
+        baseFrequency: '0.012 0.015',
         numOctaves: '2',
         seed: '3',
         result: 'noise',
@@ -93,7 +97,7 @@ export function createDisplacementFilter(
         noise.appendChild(
             svgEl(doc, 'animate', {
                 attributeName: 'baseFrequency',
-                values: '0.010 0.012; 0.014 0.009; 0.010 0.012',
+                values: '0.012 0.015; 0.017 0.011; 0.012 0.015',
                 dur: `${speed}s`,
                 repeatCount: 'indefinite',
             })
@@ -102,7 +106,7 @@ export function createDisplacementFilter(
 
     const soften = svgEl(doc, 'feGaussianBlur', {
         in: 'noise',
-        stdDeviation: '2',
+        stdDeviation: '1.5',
         result: 'softNoise',
     });
 

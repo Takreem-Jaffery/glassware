@@ -28,12 +28,19 @@ no blur — degrade one tier, not to nothing.
 
 | Token                     | Default | Range        | User-configurable? |
 |----------------------------|---------|--------------|---------------------|
-| `--glass-blur`              | 12px    | 4px–24px     | Yes                 |
-| `--glass-transparency`      | 0.18    | 0.05–0.45    | Yes (primary user-facing knob) |
+| `--glass-blur`              | 12px (`watery`: 4px) | 4px–24px | Yes         |
+| `--glass-transparency`      | 0.18 (`watery`: 0.08) | 0.05–0.45 | Yes (primary user-facing knob) |
 | `--glass-tint`               | rgba(255,255,255,1) | any color | Yes — tint color mixed at `transparency` alpha |
 | `--glass-radius`            | 12px    | 0px–32px     | Yes |
-| `--glass-distortion-scale`  | 28      | 10–50        | Yes, `watery` only — feDisplacementMap scale |
+| `--glass-distortion-scale`  | 40      | 10–50        | Yes, `watery` only — feDisplacementMap scale |
 | `--glass-distortion-speed`  | 8s      | 4s–16s       | Yes, `watery` only — noise animation duration |
+
+**Per-type defaults:** `watery` is meant to be see-through, so it starts
+from a lower blur and fill than `frosted` (see the table). Frosted blur
+smears the backdrop, which would hide the distortion that makes watery
+look different. A value the developer sets explicitly always wins over
+either default, and implementations must apply the per-type default only
+when the developer left the token unset.
 
 **Naming decision:** `transparency` (not `opacity`) is the public-facing
 name, since "opacity" is ambiguous about opacity of *what* (the glass
@@ -137,7 +144,7 @@ set these by hand, with the exception noted in §6.1 for zero-JS use.
 
 | Hook | Values | Meaning |
 |------|--------|---------|
-| `data-glass-type` | `watery` | The **resolved** type. Present only when `type` is `watery` **and** support was detected (§1) **and** the SVG filter was injected. Absent means `frosted`; the stylesheet reacts to `watery` only, so any other value renders frosted. |
+| `data-glass-type` | `watery` | The **resolved** type. Present only when `type` is `watery` **and** support was detected (§1) **and** the SVG filter was injected. Absent means `frosted`; the stylesheet reacts to `watery` only, so any other value renders frosted. `attach()` owns this attribute while attached and removes a hand-written one: `watery` without its filter would leave the element with no blur at all, which §1 forbids. |
 | `data-glass-edge` | `off` | Edge reflection disabled (`edgeReflection: false`). Absent means enabled. Web spelling of `--glass-edge-enabled` (§3). |
 | `--glass-text-color` | CSS color | The resolved text color (§4): `#1a1a1a` or `#f5f5f5`. Set inline by `attach()`; without JS it follows `data-glass-mode`. |
 | `--glass-distortion-filter` | `url(#id)` | Reference to the per-element SVG displacement filter. SVG filter attributes can't read CSS variables, so each distinct distortion scale/speed pair gets its own filter. Default: `url(#glassware-displacement)`. |
@@ -154,13 +161,13 @@ set these by hand, with the exception noted in §6.1 for zero-JS use.
 ```js
 {
   type: 'frosted' | 'watery',        // default 'frosted'; 'watery' auto-falls back
-  transparency: 0.05–0.45,            // default 0.18
+  transparency: 0.05–0.45,            // default 0.18 (watery: 0.08)
   tint: 'rgba(...)' | named color,    // default white
-  blur: 4–24,                         // px
-  radius: 0–32,                       // px
+  blur: 4–24,                         // px, default 12 (watery: 4)
+  radius: 0–32,                       // px, default 12
   edgeReflection: boolean,            // default true
   contrastMode: 'auto' | 'light' | 'dark', // 'light'/'dark' declare the BACKGROUND (§4)
-  distortionScale: 10–50,             // default 28; watery only
+  distortionScale: 10–50,             // default 40; watery only
   distortionSpeed: 4–16,              // seconds, default 8; watery only
 
   // reserved, not yet implemented:
@@ -168,6 +175,30 @@ set these by hand, with the exception noted in §6.1 for zero-JS use.
   crack: { enabled: boolean, clicksUntilCrack: number, resetOnReload: boolean }
 }
 ```
+
+**Validation rules** (every platform): a number outside its range is
+clamped to the nearest bound; a value of the wrong type, `NaN`, or an
+unknown option value is ignored, so the default applies. Only values the
+developer actually set are applied, so per-type defaults (§2) and
+stylesheet defaults stay in effect for everything else.
+
+### 7.1 Web API
+
+```js
+const glass = glassware.attach(element, config);  // returns a handle
+
+glass.ready            // Promise: text color for the current config is decided
+glass.update(config)   // merge over current settings; undefined resets a key
+glass.refresh()        // re-measure the background (it changed behind the element)
+glass.detach()         // remove everything attach() added and restore the original state
+glass.config           // the validated config currently applied
+```
+
+Attaching an element that is already attached updates it. Everything
+except the text color is applied before `attach()` returns; the text color
+follows asynchronously (image sampling) and `ready` resolves when it is set.
+Native implementations should offer the same operations under idiomatic
+names.
 
 ## 8. Supported Targets
 
