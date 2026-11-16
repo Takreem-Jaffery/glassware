@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glassware demo</title>
+  <meta name="description" content="Live demo of Glassware: frosted and watery glass buttons with automatic text contrast.">
+</head>
+<body>
+  <main class="stage" id="stage" data-bg="blobs-grid">
+    <!-- Decorative only. The stage's own background drives contrast detection,
+         so these blobs never confuse the text color measurement. -->
+    <div class="blobs" aria-hidden="true">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+      <span class="blob b3"></span>
+      <span class="blob b4"></span>
+    </div>
+
+    <div class="layout">
+      <section class="hero">
+        <p class="eyebrow">Glassware</p>
+        <h1>Glass buttons that stay readable on any background.</h1>
+        <p class="lede">
+          Frosted and watery glass for the web, with text color chosen automatically
+          from what sits behind the button. Change the background and the controls
+          to see it respond.
+        </p>
+
+        <div class="live">
+          <button id="live" type="button">Glass button</button>
+          <p class="status" id="status" aria-live="polite"></p>
+        </div>
+
+        <h2 class="section-title">Presets</h2>
+        <div class="gallery" id="gallery"></div>
+
+        <p class="support" id="support"></p>
+      </section>
+
+      <aside class="panel" aria-label="Controls">
+        <h2>Tune it</h2>
+
+        <div class="field">
+          <label for="bg">Background</label>
+          <select id="bg">
+            <option value="blobs-grid">Animated blobs + grid</option>
+            <option value="blobs">Animated blobs</option>
+            <option value="light">Light stripes</option>
+            <option value="photo-dark">Dark image</option>
+            <option value="photo-light">Light image</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type">
+            <option value="frosted">Frosted</option>
+            <option value="watery">Watery</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="transparency">Transparency <output id="transparency-out"></output></label>
+          <input id="transparency" type="range">
+        </div>
+        <div class="field">
+          <label for="blur">Blur <output id="blur-out"></output></label>
+          <input id="blur" type="range">
+        </div>
+        <div class="field">
+          <label for="radius">Radius <output id="radius-out"></output></label>
+          <input id="radius" type="range">
+        </div>
+        <div class="field">
+          <label for="distortionScale">Distortion scale <output id="distortionScale-out"></output></label>
+          <input id="distortionScale" type="range">
+        </div>
+        <div class="field">
+          <label for="distortionSpeed">Distortion speed (s) <output id="distortionSpeed-out"></output></label>
+          <input id="distortionSpeed" type="range">
+        </div>
+
+        <div class="field row">
+          <label for="tint">Tint</label>
+          <input id="tint" type="color" value="#ffffff">
+        </div>
+        <div class="field row">
+          <label for="edge">Edge reflection</label>
+          <input id="edge" type="checkbox" checked>
+        </div>
+        <div class="field">
+          <label for="contrast">Background tone (contrast)</label>
+          <select id="contrast">
+            <option value="auto">Auto (measure it)</option>
+            <option value="light">Light background</option>
+            <option value="dark">Dark background</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button id="reset" type="button" class="plain">Reset</button>
+          <button id="copy" type="button" class="plain">Copy code</button>
+        </div>
+
+        <pre class="snippet" id="snippet" aria-label="Code for the current settings"></pre>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module" src="./demo.ts"></script>
+</body>
+</html>
