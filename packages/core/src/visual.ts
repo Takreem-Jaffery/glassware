@@ -42,6 +42,23 @@ export function pickTextMode(luminance: number, threshold = 0.5): TextMode {
     return luminance > threshold ? 'dark' : 'light';
 }
 
+// Same decision as pickTextMode, but reluctant to change its mind.
+// When the background sits right on the threshold (a button dragged along a
+// soft gradient, an animated backdrop), plain pickTextMode would flip the
+// text color back and forth on tiny changes. Here the luminance has to cross
+// the threshold by `margin` before the text switches from `previous`.
+// Without a previous mode this is exactly pickTextMode.
+export function pickTextModeSticky(
+    luminance: number,
+    previous: TextMode | undefined,
+    threshold = 0.5,
+    margin = 0.04
+): TextMode {
+    if (previous === 'dark') return luminance > threshold - margin ? 'dark' : 'light';
+    if (previous === 'light') return luminance > threshold + margin ? 'dark' : 'light';
+    return pickTextMode(luminance, threshold);
+}
+
 export interface RGBA{
     r: number; //0-255
     g: number; //0-255

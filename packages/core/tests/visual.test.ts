@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     relativeLuminance,
     pickTextMode,
+    pickTextModeSticky,
     parseColor,
     textModeForTone,
     TEXT_COLORS,
@@ -42,6 +43,53 @@ describe('pickTextMode', () => {
         // but should pick 'light' if we lower the threshold to 0.3
         expect(pickTextMode(0.4, 0.5)).toBe('light');
         expect(pickTextMode(0.4, 0.3)).toBe('dark');
+    });
+});
+
+describe('pickTextModeSticky', () => {
+    it('is exactly pickTextMode when there is no previous mode', () => {
+        for (const lum of [0, 0.2, 0.49, 0.5, 0.51, 0.9, 1]) {
+            expect(pickTextModeSticky(lum, undefined)).toBe(pickTextMode(lum));
+        }
+        expect(pickTextModeSticky(0.4, undefined, 0.3)).toBe('dark');
+    });
+
+    it('keeps dark text just below the threshold', () => {
+        expect(pickTextModeSticky(0.48, 'dark')).toBe('dark');
+        expect(pickTextModeSticky(0.461, 'dark')).toBe('dark');
+    });
+
+    it('switches from dark text once luminance drops past the margin', () => {
+        expect(pickTextModeSticky(0.45, 'dark')).toBe('light');
+        expect(pickTextModeSticky(0.1, 'dark')).toBe('light');
+    });
+
+    it('keeps light text just above the threshold', () => {
+        expect(pickTextModeSticky(0.52, 'light')).toBe('light');
+        expect(pickTextModeSticky(0.539, 'light')).toBe('light');
+    });
+
+    it('switches from light text once luminance rises past the margin', () => {
+        expect(pickTextModeSticky(0.55, 'light')).toBe('dark');
+        expect(pickTextModeSticky(0.9, 'light')).toBe('dark');
+    });
+
+    it('does not flicker when luminance wobbles around the threshold', () => {
+        let mode: 'light' | 'dark' | undefined;
+        const seen: string[] = [];
+        for (const lum of [0.52, 0.49, 0.51, 0.48, 0.5, 0.47]) {
+            mode = pickTextModeSticky(lum, mode);
+            seen.push(mode);
+        }
+        // starts dark (0.52 > 0.5) and never leaves it
+        expect(new Set(seen)).toEqual(new Set(['dark']));
+    });
+
+    it('respects a custom threshold and margin', () => {
+        expect(pickTextModeSticky(0.28, 'dark', 0.3, 0.05)).toBe('dark');
+        expect(pickTextModeSticky(0.24, 'dark', 0.3, 0.05)).toBe('light');
+        expect(pickTextModeSticky(0.34, 'light', 0.3, 0.05)).toBe('light');
+        expect(pickTextModeSticky(0.36, 'light', 0.3, 0.05)).toBe('dark');
     });
 });
 
