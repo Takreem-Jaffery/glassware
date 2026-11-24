@@ -64,7 +64,7 @@
   backdrop-filter: blur(var(--glass-blur));
 
   box-shadow: var(--glass-edge-highlight), var(--glass-edge-shadow);
-  transition: transform 0.15s ease;
+    transition: transform 0.15s ease, color 0.2s ease;
 }
 
 /* SPEC §4 CSS-only fallback: the developer declares what is BEHIND the

@@ -1,6 +1,11 @@
 import { resolveConfig, type GlassConfig, type ResolvedConfig } from './config';
-import { resolveContrastMode, type PixelReader } from './sampling';
-import { TEXT_COLORS } from './visual';
+import {
+    resolveContrast as resolveBackgroundContrast,
+    type BackgroundMeasure,
+    type BackgroundSampler,
+    type PixelReader,
+} from './sampling';
+import { TEXT_COLORS, type TextMode } from './visual';
 import {
     DEFAULT_DISTORTION_SCALE,
     DEFAULT_DISTORTION_SPEED,
@@ -10,14 +15,26 @@ import {
 
 export { resolveConfig, RANGES } from './config';
 export type { GlassConfig, GlassType, ResolvedConfig } from './config';
-export { resolveContrastMode } from './sampling';
-export type { PixelReader } from './sampling';
+export { resolveContrastMode, resolveContrast, measureBackground } from './sampling';
+export type {
+    BackgroundMeasure,
+    BackgroundSampler,
+    ContrastResolution,
+    ImagePixels,
+    PixelReader,
+} from './sampling';
+export { clearImageCache } from './images';
 export { supportsWateryGlass } from './watery';
 
 export interface AttachOptions {
     // Replaces the canvas image reader, e.g. to read through your own
     // CORS-enabled proxy. Must resolve RGBA pixel data, or null on failure.
     readPixels?: PixelReader;
+    // Tells Glassware what is behind the element when CSS can't: an animated
+    // canvas, a video, WebGL. Called with the element's rectangle each time
+    // the contrast is measured; return the pixels under it, one color, or
+    // null to fall back to measuring the CSS background.
+    sampleBackground?: BackgroundSampler;
 }
 
 export interface GlassHandle {
@@ -27,6 +44,11 @@ export interface GlassHandle {
     // Resolves once the text color for the latest config has been decided.
     // Everything else is applied synchronously, before attach() returns.
     readonly ready: Promise<void>;
+    // What the latest measurement found behind the element (luminance, average
+    // color, and where it came from). null before the first measurement, and
+    // when the text mode was declared (contrastMode, data-glass-mode) or
+    // nothing could be measured.
+    readonly measurement: BackgroundMeasure | null;
     // Merge new settings over the current ones. Keys you leave out keep their
     // value; pass undefined for a key to go back to its default.
     update(config: GlassConfig): Promise<void>;
@@ -99,6 +121,8 @@ export function attach(
     let detached = false;
     let token = 0; // bumped for every contrast run so stale results are ignored
     let pending: Promise<void> = Promise.resolve();
+    let lastMode: TextMode | undefined;
+    let lastMeasurement: BackgroundMeasure | null = null;
 
     // Write a property, or put back what was there before attach() when null.
     function setProp(name: (typeof MANAGED_PROPS)[number], value: string | null): void {
@@ -159,14 +183,19 @@ export function attach(
         }
     }
 
-    function resolveContrast(): Promise<void> {
+    function runContrast(): Promise<void> {
         const mine = ++token;
-        pending = resolveContrastMode(el, {
+        pending = resolveBackgroundContrast(el, {
             contrastMode: current.contrastMode,
-            deps: { readPixels: options.readPixels },
+            // Only a measured result makes the text sticky near the threshold;
+            // a declared mode or a first run decides from scratch.
+            previous: lastMeasurement ? lastMode : undefined,
+            deps: { readPixels: options.readPixels, sampleBackground: options.sampleBackground },
         }).then(
-            (mode) => {
+            ({ mode, measurement }) => {
                 if (detached || mine !== token) return;
+                lastMode = mode;
+                lastMeasurement = measurement;
                 el.style.setProperty('--glass-text-color', TEXT_COLORS[mode]);
             },
             () => {
@@ -184,6 +213,9 @@ export function attach(
         get ready() {
             return pending;
         },
+        get measurement() {
+            return lastMeasurement;
+        },
         update(next) {
             if (detached) return Promise.resolve();
             const merged: Record<string, unknown> = { ...current, ...resolveConfig(next) };
@@ -195,10 +227,10 @@ export function attach(
             }
             current = merged as GlassConfig;
             applyStyles();
-            return resolveContrast();
+            return runContrast();
         },
         refresh() {
-            return detached ? Promise.resolve() : resolveContrast();
+            return detached ? Promise.resolve() : runContrast();
         },
         detach() {
             if (detached) return;
@@ -214,7 +246,7 @@ export function attach(
     el.classList.add('glass');
     applyStyles();
     registry.set(el, handle);
-    resolveContrast();
+    runContrast();
 
     return handle;
 }
