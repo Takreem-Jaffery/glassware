@@ -349,8 +349,11 @@ export function measureRegion(input: RegionInput): RegionResult | null {
         painters.push({ node, hasLayout, layerPainters });
     }
 
-    const columns = clamp(Math.ceil(rect.w / 10), 3, 16);
-    const rows = clamp(Math.ceil(rect.h / 10), 3, 16);
+    // About one sample every 4px, at most 32 across. A sharp edge crossing a
+    // small button (an image boundary) is otherwise judged from a handful of
+    // rows and swings the average.
+    const columns = clamp(Math.ceil(rect.w / 4), 3, 32);
+    const rows = clamp(Math.ceil(rect.h / 4), 3, 32);
 
     let red = 0;
     let green = 0;
@@ -387,6 +390,9 @@ export function measureRegion(input: RegionInput): RegionResult | null {
 // Reading the page
 // ---------------------------------------------------------------------------
 
+// The canvas has no edges worth speaking of: far larger than any page.
+const CANVAS: Box = { x: -1e7, y: -1e7, w: 2e7, h: 2e7 };
+
 export function rectToBox(rect: { left: number; top: number; width: number; height: number }): Box {
     return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
 }
@@ -407,12 +413,31 @@ export function readBackgroundStack(el: Element): { nodes: BackgroundNode[]; url
     const nodes: BackgroundNode[] = [];
     const urls: string[] = [];
 
+    const doc = el.ownerDocument;
+    const root = doc.documentElement;
+    const showsBackground = (style: CSSStyleDeclaration) => {
+        const parsed = parseColor(style.backgroundColor);
+        return (parsed !== null && parsed.a > 0) || (style.backgroundImage !== '' && style.backgroundImage !== 'none');
+    };
+    // The page background is special. The root element's background, or the
+    // body's when the root has none, is painted over the whole canvas (the
+    // viewport and everything scrolled past it), not just inside the element.
+    // It is still positioned and sized by the ROOT element's box, and images
+    // repeat past that box.
+    const rootStyle = view.getComputedStyle(root);
+    const bodyPropagates = !showsBackground(rootStyle);
+
     for (let node = el.parentElement; node; node = node.parentElement) {
         const style = view.getComputedStyle(node);
         const parsed = parseColor(style.backgroundColor);
         const color = parsed && parsed.a > 0 ? parsed : null;
         const hasImage = style.backgroundImage !== '' && style.backgroundImage !== 'none';
         if (!color && !hasImage) continue;
+
+        const paintsCanvas = node === root || (node === doc.body && bodyPropagates);
+        // Which element's box positions the background (the root's, for the page).
+        const positioned = paintsCanvas ? root : node;
+        const positionStyle = paintsCanvas ? rootStyle : style;
 
         let layers: BackgroundLayer[] = [];
         if (hasImage) {
@@ -429,21 +454,21 @@ export function readBackgroundStack(el: Element): { nodes: BackgroundNode[]; url
             for (const layer of layers) if (layer.image.kind === 'url') urls.push(layer.image.url);
         }
 
-        const border = rectToBox(node.getBoundingClientRect());
+        const border = rectToBox(positioned.getBoundingClientRect());
         nodes.push({
-            box: border,
+            box: paintsCanvas ? CANVAS : border,
             color,
             layers,
             geometry: {
                 border,
-                borderWidths: edges(style, 'border', 'Width'),
-                padding: edges(style, 'padding', ''),
+                borderWidths: edges(positionStyle, 'border', 'Width'),
+                padding: edges(positionStyle, 'padding', ''),
                 viewport: { x: 0, y: 0, w: view.innerWidth, h: view.innerHeight },
                 scroll: {
-                    left: node.scrollLeft,
-                    top: node.scrollTop,
-                    width: node.scrollWidth,
-                    height: node.scrollHeight,
+                    left: positioned.scrollLeft,
+                    top: positioned.scrollTop,
+                    width: positioned.scrollWidth,
+                    height: positioned.scrollHeight,
                 },
             },
         });
