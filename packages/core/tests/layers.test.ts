@@ -439,8 +439,8 @@ describe('measureRegion', () => {
 
     it('only counts the part of the region the node actually covers', () => {
         const result = measureRegion({
-            rect: { x: 0, y: 0, w: 100, h: 50 },
-            stack: [nodeOf({ x: 0, y: 0, w: 50, h: 50 }, { color: { r: 0, g: 0, b: 0, a: 1 } })],
+            rect: { x: 0, y: 0, w: 96, h: 48 },
+            stack: [nodeOf({ x: 0, y: 0, w: 48, h: 48 }, { color: { r: 0, g: 0, b: 0, a: 1 } })],
             images: new Map(),
         })!;
         // Left half black, right half the white page behind it.
@@ -635,5 +635,81 @@ describe('readBackgroundStack', () => {
     it('returns an empty stack when nothing is painted', () => {
         const { button } = build('');
         expect(readBackgroundStack(button)).toEqual({ nodes: [], urls: [] });
+    });
+});
+
+describe('readBackgroundStack: the page background', () => {
+    beforeEach(() => {
+        document.body.innerHTML = '';
+        document.documentElement.removeAttribute('style');
+        document.body.removeAttribute('style');
+    });
+
+    function stubRect(el: Element, x: number, y: number, w: number, h: number) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, x, y }),
+        });
+    }
+
+    function addButton(): HTMLElement {
+        const button = document.createElement('button');
+        document.body.appendChild(button);
+        return button;
+    }
+
+    it('lets a root element background cover the whole canvas, sized by the root box', () => {
+        document.documentElement.setAttribute('style', 'background-image: linear-gradient(#000, #fff)');
+        stubRect(document.documentElement, 0, 0, 800, 200);
+        stubRect(document.body, 0, 0, 800, 200);
+        const stack = readBackgroundStack(addButton())!;
+
+        expect(stack.nodes).toHaveLength(1);
+        const [node] = stack.nodes;
+        // Far larger than the root box, so points below it still get painted...
+        expect(node.box.h).toBeGreaterThan(1e6);
+        // ...while the gradient is still sized by the root box.
+        expect(node.geometry.border).toEqual({ x: 0, y: 0, w: 800, h: 200 });
+    });
+
+    it('propagates the body background to the canvas when the root has none', () => {
+        document.body.setAttribute('style', 'background-image: linear-gradient(#000, #fff)');
+        stubRect(document.documentElement, 0, 0, 800, 300);
+        stubRect(document.body, 8, 8, 784, 100);
+        const stack = readBackgroundStack(addButton())!;
+
+        const [node] = stack.nodes;
+        expect(node.box.h).toBeGreaterThan(1e6);
+        expect(node.geometry.border).toEqual({ x: 0, y: 0, w: 800, h: 300 }); // the root's box, not the body's
+    });
+
+    it('keeps the body background inside the body when the root has its own', () => {
+        document.documentElement.setAttribute('style', 'background-color: rgb(10, 10, 10)');
+        document.body.setAttribute('style', 'background-image: linear-gradient(#000, #fff)');
+        stubRect(document.documentElement, 0, 0, 800, 300);
+        stubRect(document.body, 8, 8, 784, 100);
+        const stack = readBackgroundStack(addButton())!;
+
+        expect(stack.nodes).toHaveLength(2);
+        const [body, html] = stack.nodes;
+        expect(body.box).toEqual({ x: 8, y: 8, w: 784, h: 100 });
+        expect(html.box.h).toBeGreaterThan(1e6);
+    });
+
+    it('paints a short body\'s propagated gradient past its end by repeating it', () => {
+        document.body.setAttribute('style', 'background-image: linear-gradient(#000, #fff)');
+        stubRect(document.documentElement, 0, 0, 800, 200);
+        stubRect(document.body, 0, 0, 800, 200);
+        const button = addButton();
+        const stack = readBackgroundStack(button)!;
+
+        // 100px into the second repeat of a 200px tile: a mid gray, not white.
+        const result = measureRegion({
+            rect: { x: 300, y: 290, w: 40, h: 20 },
+            stack: stack.nodes,
+            images: new Map(),
+        })!;
+        expect(result.luminance).toBeGreaterThan(0.1);
+        expect(result.luminance).toBeLessThan(0.5);
     });
 });
