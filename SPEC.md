@@ -95,13 +95,54 @@ Otherwise → use light text (`#f5f5f5`). This is a simplified version of
 WCAG contrast ratio checking, not full AA/AAA compliance — documented as
 a known limitation for v1, upgradeable later.
 
+**Measuring what is behind the element.** The measurement is of the
+**region directly under the element's current rectangle**, not of the
+whole background. A button over the dark corner of a photo and the same
+button over its bright corner get different results. Implementations
+measure the region by averaging the relative luminance of a grid of points
+(about one per 4px, at most 32 per side) across the element's bounding
+rectangle, with whatever paints behind it composited in order (page,
+ancestors' colors, images, gradients, translucent layers). Web
+implementations model the CSS background stack of the element's ancestors
+(`background-size`, `-position`, `-repeat`, `-origin`, `-attachment`,
+gradients, the page background painted over the whole canvas); native
+implementations should read the pixels behind the view. When the region
+can't be worked out (no layout, an unsupported background, an unreadable
+image) the implementation falls back to a rougher estimate of the whole
+background, then to the `data-glass-bg` hint.
+
+**Custom backdrops.** Backgrounds that CSS can't describe (an animated
+canvas, a video, WebGL) are supported through a developer-supplied sampler:
+a function that receives the element's rectangle and returns the pixels
+under it, a single color, or nothing (to fall back to measuring the CSS).
+Web: the `sampleBackground` option (§7.1). Native implementations should
+offer the same hook in idiomatic form.
+
+**No flicker.** Re-measuring happens whenever the background or the element
+moves (`refresh()`). To stop the text color flipping back and forth on a
+soft gradient, once a text color has been chosen from a measurement it only
+changes after luminance passes the threshold by a margin of **0.04**
+(hysteresis). The first decision, and any decision after a declared mode,
+uses the plain threshold. Changing the text color should be a short fade
+(the web stylesheet uses 0.2s), not a snap.
+
 **Precedence when resolving text color:**
 
 1. `contrastMode` config set to `light` / `dark`
 2. `data-glass-mode` attribute
-3. Measured background (solid color, or sampled image/gradient)
-4. `data-glass-bg` hint, when sampling isn't possible
-5. Default: dark text (assumes a light page)
+3. The developer's sampler (`sampleBackground`), when it returns something
+4. The region under the element, measured from the background
+5. A solid background color, or the whole image averaged (rough estimate)
+6. `data-glass-bg` hint, when sampling isn't possible
+7. Default: dark text (assumes a light page)
+
+**Known limitations (web).** Only backgrounds of the element's ancestors
+are measured, so an overlapping sibling element or a positioned layer that
+is not an ancestor is invisible to it (use the sampler for those).
+`calc()` in positions, four-value positions, `image-set()`, conic gradients
+and `background-blend-mode` are not modelled and fall back to the rough
+estimate. Cross-origin images need CORS headers to be readable; otherwise
+the fallbacks apply.
 
 ## 5. Interaction Tokens (reserved for Phase 0.5+, not implemented yet)
 
@@ -185,20 +226,43 @@ stylesheet defaults stay in effect for everything else.
 ### 7.1 Web API
 
 ```js
-const glass = glassware.attach(element, config);  // returns a handle
+const glass = glassware.attach(element, config, options);  // returns a handle
 
 glass.ready            // Promise: text color for the current config is decided
 glass.update(config)   // merge over current settings; undefined resets a key
 glass.refresh()        // re-measure the background (it changed behind the element)
 glass.detach()         // remove everything attach() added and restore the original state
 glass.config           // the validated config currently applied
+glass.measurement      // what the latest measurement found: { luminance, color, source }
+                       // (null before the first one, and when the mode is declared)
 ```
+
+`options` (all optional):
+
+```js
+{
+  // Pixels or a color for the area under the element, when CSS can't say
+  // (canvas, video, WebGL). Receives the element's rectangle in viewport
+  // coordinates. Return { width, height, data } (RGBA), { r, g, b, a },
+  // or null to fall back to measuring the CSS background. May be async.
+  sampleBackground: (rect) => ImagePixels | RGBA | null,
+
+  // Replaces the built-in image reader, e.g. to read through your own
+  // CORS-enabled proxy. Receives a URL, returns RGBA pixels or null.
+  readPixels: (url) => Promise<ImagePixels | ArrayLike<number> | null>,
+}
+```
+
+`measurement.source` says where the number came from: `custom` (your
+sampler), `region` (the CSS background under the element), `color` (a solid
+color), `image` (the whole image averaged) or `hint` (`data-glass-bg`).
 
 Attaching an element that is already attached updates it. Everything
 except the text color is applied before `attach()` returns; the text color
 follows asynchronously (image sampling) and `ready` resolves when it is set.
-Native implementations should offer the same operations under idiomatic
-names.
+Call `refresh()` when the background behind the element changes or the
+element moves (a drag, a scroll, an animation frame). Native
+implementations should offer the same operations under idiomatic names.
 
 ## 8. Supported Targets
 
