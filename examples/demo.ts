@@ -397,7 +397,7 @@ function buildSnippet(): string {
   if (watery && state.distortionSpeed !== undefined) add('distortionSpeed', state.distortionSpeed);
 
   const call = lines.length ? `attach(button, {\n${lines.join('\n')}\n});` : 'attach(button);';
-  return `import { attach } from 'glassware';\n\n${call}`;
+  return `import '@glassware/core/glassware.css';\nimport { attach } from '@glassware/core';\n\n${call}`;
 }
 
 // Sliders show the value in effect: your setting, or the default for this type.
