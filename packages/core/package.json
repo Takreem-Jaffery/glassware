@@ -1,28 +1,67 @@
 {
-  "name": "glassware",
+  "name": "@glassware/core",
   "version": "0.1.0",
-  "description": "A cross-platform glass/liquid-glass UI effect library",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "description": "Frosted and watery glass buttons for the web, with text color chosen automatically from what sits behind them",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./glassware.css": "./dist/glassware.css",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
     "dist",
-    "src/glassware.css"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
-    "test": "vitest run"
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "ui",
     "css",
+    "glass",
     "glassmorphism",
     "liquid-glass",
-    "buttons"
+    "frosted-glass",
+    "buttons",
+    "contrast"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Takreem-Jaffery/glassware.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/Takreem-Jaffery/glassware#readme",
+  "bugs": {
+    "url": "https://github.com/Takreem-Jaffery/glassware/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "jsdom": "^28.1.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   }
